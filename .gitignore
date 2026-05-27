@@ -1,0 +1,21 @@
+# Cocotb / Icarus simulation artifacts
+sim_build/
+__pycache__/
+*.pyc
+results.xml
+dump.vcd
+dump.fst
+*.vvp
+
+# Python
+.venv/
+*.egg-info/
+dist/
+build/
+
+# macOS
+.DS_Store
+
+# Editor
+.vscode/
+*.swp

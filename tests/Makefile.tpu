@@ -1,0 +1,17 @@
+TOPLEVEL_LANG = verilog
+
+VERILOG_SOURCES = $(PWD)/../rtl/pe.v \
+                  $(PWD)/../rtl/systolic_array.v \
+                  $(PWD)/../rtl/bram.v \
+                  $(PWD)/../rtl/tpu_controller.v \
+                  $(PWD)/../rtl/tpu_top.v
+
+TOPLEVEL = tpu_top
+MODULE   = test_tpu
+SIM     ?= icarus
+
+COMPILE_ARGS += -Ptpu_top.N=4
+COMPILE_ARGS += -Ptpu_top.DATA_WIDTH=8
+COMPILE_ARGS += -Ptpu_top.ACC_WIDTH=32
+
+include $(shell cocotb-config --makefiles)/Makefile.sim
