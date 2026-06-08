@@ -1,11 +1,23 @@
 # Cocotb / Icarus simulation artifacts
 sim_build/
+sim_build_*/
 __pycache__/
 *.pyc
 results.xml
 dump.vcd
 dump.fst
 *.vvp
+
+# Vivado / FPGA build artifacts
+vivado*.jou
+vivado*.log
+build_vivado.log
+clockInfo.txt
+*.dcp
+.Xil/
+
+# MNIST dataset + trained model cache
+host/mnist_data/
 
 # Python
 .venv/

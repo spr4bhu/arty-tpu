@@ -8,6 +8,8 @@ touches raw Cocotb signals directly.
 import numpy as np
 from cocotb.triggers import RisingEdge, Timer, ClockCycles
 
+from tiling.skew import pack_signed, to_signed, compute_bram_slices
+
 
 class TPUDriver:
     """Async driver that speaks to one tpu_top DUT instance."""
@@ -20,39 +22,20 @@ class TPUDriver:
 
     def _pack_signed(self, values):
         """Pack a list of signed integers into a single wide unsigned value (LSB-first)."""
-        w = self.DATA_WIDTH
-        mask = (1 << w) - 1
-        result = 0
-        for i, v in enumerate(values):
-            if v < 0:
-                v = (1 << w) + v
-            result |= (v & mask) << (i * w)
-        return result
+        return pack_signed(values, self.DATA_WIDTH)
 
     def _to_signed(self, val):
         """Reinterpret an unsigned integer as ACC_WIDTH-bit signed."""
-        if val >= (1 << (self.ACC_WIDTH - 1)):
-            val -= (1 << self.ACC_WIDTH)
-        return val
+        return to_signed(val, self.ACC_WIDTH)
 
     def _compute_bram_slices(self, A, B):
         """
         Pre-compute the diagonal-skewed BRAM words for one NxN tile pair.
 
-        BRAM_A[t]: lane i = A[i][t-i]  if valid, else 0
-        BRAM_B[t]: lane j = B[t-j][j]  if valid, else 0
-
+        Delegates to tiling.skew so simulation and hardware stay byte-identical.
         Returns two lists of length 2*N-1, each a packed integer word.
         """
-        N = self.N
-        stream_len = 2 * N - 1
-        bram_a, bram_b = [], []
-        for t in range(stream_len):
-            a_vals = [int(A[i][t - i]) if 0 <= (t - i) < N else 0 for i in range(N)]
-            b_vals = [int(B[t - j][j]) if 0 <= (t - j) < N else 0 for j in range(N)]
-            bram_a.append(self._pack_signed(a_vals))
-            bram_b.append(self._pack_signed(b_vals))
-        return bram_a, bram_b
+        return compute_bram_slices(A, B, self.N, self.DATA_WIDTH)
 
     async def reset(self):
         """Hard reset the DUT."""

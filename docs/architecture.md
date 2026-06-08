@@ -84,12 +84,33 @@ for N=16 that is 1,032,256, well within int32).
 
 ## FPGA synthesis notes
 
-- Replace `bram.v` with the target device's BRAM primitive (Xilinx `RAMB36E2`,
-  Intel `altsyncram`, etc.) and change the read port to registered (1-cycle
-  latency). Adjust `ST_CLEAR` and `ST_STREAM` timing in `tpu_controller.v`
-  to account for the extra read latency.
-- The systolic array `generate` block synthesizes cleanly into a regular
-  array of DSP slices on most FPGAs.
-- Timing closure target: the critical path is the accumulator adder in each
-  PE (`c + a_in * b_in`). With DSP inference enabled, this typically meets
-  200+ MHz on mid-range FPGAs at N=4.
+- The three memories are tiny (BRAM_A/B = 8×32 b, BRAM_C = 16×32 b at N=4), so
+  `bram.v`'s async-read register file maps cleanly to **distributed LUT-RAM** —
+  no need to swap in a vendor BRAM primitive or change the controller timing.
+  (For much larger N you would switch to registered block RAM and add a read
+  latency cycle in `tpu_controller.v`.)
+- The systolic array `generate` block synthesizes into a regular array of DSP
+  slices: the PE MAC `c + a_in*b_in` infers a DSP48.
+
+## Running on hardware (Arty A7-35T)
+
+`tpu_top` exposes wide parallel buses that can't reach pins, so `uart_matmul.v`
+wraps it in a UART "matmul service":
+
+```
+PC (host/tpu_uart.py)  ──UART──►  uart_rx ─► loader FSM ─► tpu_top
+                       ◄──UART──   uart_tx ◄─ unloader FSM ◄┘
+```
+
+- **FSM** (`uart_matmul.v`): `IDLE` (wait `0xA5`) → `RX` (load BRAM_A/B) →
+  `START` → `WAIT` (done) → `TX` (stream result), plus a small power-on reset.
+- **Host pre-skews** A/B with `tiling/skew.py` — the same helpers the Cocotb
+  tests use — so on-chip results are byte-identical to simulation.
+- **Wire protocol** (N=4): host→FPGA 57 bytes (`0xA5` + 7 A-slices + 7 B-slices,
+  4 B each, little-endian); FPGA→host 64 bytes (16 result words, row-major).
+- **Timing**: at N=4 the design closes 100 MHz comfortably (WNS ≈ +1.3 ns); the
+  UART link, not the array, is the throughput bottleneck.
+
+Flows: `make build-fpga` (bitstream) · `make program-fpga` (JTAG, volatile) ·
+`make flash-fpga` (QSPI, persists across power cycles). See the README for the
+full host/demo commands.
